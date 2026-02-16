@@ -60,15 +60,23 @@ export const StoryTranscriptPanel = ({ isMobile = false }: StoryTranscriptPanelP
     const scrollContainer = document.getElementById('transcript-panel-content');
     if (!scrollContainer) return;
 
-    let userInitiated = false;
+    let lastUserInteractionTs = 0;
 
     const markAsUserInitiated = () => {
-      userInitiated = true;
+      lastUserInteractionTs = Date.now();
     };
 
     const handleScroll = () => {
-      if (!userInitiated || isProgrammaticScrollRef.current) return;
+      if (isProgrammaticScrollRef.current) return;
+      if (isCurrentTimeOutOfView) return;
+
+      const now = Date.now();
+      const USER_SCROLL_WINDOW_MS = 280;
+      const isLikelyUserScroll = now - lastUserInteractionTs <= USER_SCROLL_WINDOW_MS;
+      if (!isLikelyUserScroll) return;
+
       setIsCurrentTimeOutOfView(true);
+      lastUserInteractionTs = 0;
     };
 
     scrollContainer.addEventListener('pointerdown', markAsUserInitiated);
@@ -82,7 +90,7 @@ export const StoryTranscriptPanel = ({ isMobile = false }: StoryTranscriptPanelP
       scrollContainer.removeEventListener('touchstart', markAsUserInitiated);
       scrollContainer.removeEventListener('scroll', handleScroll);
     };
-  }, [isPlaying, setIsCurrentTimeOutOfView, isProgrammaticScrollRef]);
+  }, [isPlaying, isCurrentTimeOutOfView, setIsCurrentTimeOutOfView, isProgrammaticScrollRef]);
 
   useEffect(() => {
     if (!areAccordionsInitialized) return;
@@ -117,6 +125,7 @@ export const StoryTranscriptPanel = ({ isMobile = false }: StoryTranscriptPanelP
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
+          pt: isMobile ? 2.25 : 3.25,
           pr: isMobile ? 0 : 1,
         }}>
         {sections.map((section) => {

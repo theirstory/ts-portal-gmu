@@ -68,7 +68,7 @@ export const StoryTranscriptParagraph = memo(({ paragraph, wordsInParagraph, isP
   const { ner_data = [] } = storyHubPage?.properties ?? {};
   const renderedWordIndexes = new Set<number>();
   const isMobileView = isMobile();
-  const transcriptTopOffset = isMobileView ? -12 : -8;
+  const transcriptTopOffset = isMobileView ? -44 : -36;
 
   /**
    * effects
@@ -85,10 +85,14 @@ export const StoryTranscriptParagraph = memo(({ paragraph, wordsInParagraph, isP
 
     if (!element || !scrollContainer) return;
 
+    isProgrammaticScrollRef.current = true;
     scrollElementIntoContainer(element, scrollContainer, transcriptTopOffset);
+    setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 120);
 
     setTargetScrollTime(null);
-  }, [targetScrollTime, paragraph.start, paragraph.end, setTargetScrollTime, transcriptTopOffset]);
+  }, [targetScrollTime, paragraph.start, paragraph.end, setTargetScrollTime, transcriptTopOffset, isProgrammaticScrollRef]);
 
   useEffect(() => {
     const scrollContainer = document.getElementById('transcript-panel-content');
@@ -102,7 +106,11 @@ export const StoryTranscriptParagraph = memo(({ paragraph, wordsInParagraph, isP
         const element = paragraphRef.current;
         if (element) {
           setTimeout(() => {
+            isProgrammaticScrollRef.current = true;
             scrollElementIntoContainer(element, scrollContainer, transcriptTopOffset);
+            setTimeout(() => {
+              isProgrammaticScrollRef.current = false;
+            }, 120);
           }, 100);
         }
       }
@@ -115,7 +123,11 @@ export const StoryTranscriptParagraph = memo(({ paragraph, wordsInParagraph, isP
       const targetWordElement = document.querySelector(`[data-word-index="${targetWordIndex}"]`) as HTMLElement | null;
       if (targetWordElement) {
         setTimeout(() => {
+          isProgrammaticScrollRef.current = true;
           scrollElementIntoContainer(targetWordElement, scrollContainer, transcriptTopOffset);
+          setTimeout(() => {
+            isProgrammaticScrollRef.current = false;
+          }, 120);
         }, 100);
       }
     }

@@ -218,7 +218,7 @@ export const StoryContainer = ({ storyUuid }: { storyUuid: string }) => {
             flexDirection: 'row',
             justifyContent: 'center',
             gap: 2,
-            height: `calc(100dvh - 100px - 60px)`,
+            height: `calc(100dvh - 100px - 50px)`,
             paddingTop: '12px',
             paddingBottom: '12px',
             paddingX: 2,
