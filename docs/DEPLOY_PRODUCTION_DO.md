@@ -1,190 +1,113 @@
 # Production Deployment on DigitalOcean Droplet
 
-This guide deploys the stack in production mode using Docker on a single DigitalOcean Droplet.
-By default, production starts only `weaviate` + `frontend` (no NLP model loading).
+This guide is optimized for the fewest possible steps.
 
-## 0) Prerequisites
+## Prerequisites
 
-- A DigitalOcean Droplet with Ubuntu 24.04
-- A domain pointing to the Droplet IP (optional, but recommended)
-- SSH access to the server
+- Ubuntu 24.04 Droplet
+- SSH access to the Droplet
+- Your repository available on the Droplet
 
-Recommended droplet size: **4 vCPU / 8GB RAM**.
+Recommended size: **4GB RAM minimum**.
 
-## 1) Install Docker (one time)
-
-Run on the Droplet:
+## 1) Install minimal prerequisites on the Droplet
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y ca-certificates curl gnupg git
-
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
 sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable docker
+sudo apt install -y git
 ```
 
-## 2) Clone and configure project
+## 2) Clone repository on the Droplet
 
 ```bash
-git clone <YOUR_REPO_URL> ts-portal
+git clone git@github.com:theirstory/ts-portal.git
 cd ts-portal
-
-cp config.example.json config.json
-cp .env.production.example .env.production
-cp nlp-processor/.env.example nlp-processor/.env
 ```
 
-Edit these files:
+## 3) Install Docker on the Droplet (one command)
 
-- `config.json`
-- `.env.production`
-- `nlp-processor/.env`
-
-For this deployment mode, keep `.env.production` with internal Docker host names (`weaviate`).
-
-## 3) Start production stack (light mode)
+Inside the repository:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+sudo bash scripts/deploy/setup-docker-ubuntu.sh
 ```
 
-Check status:
+What this script does:
+
+- Installs Docker Engine + Docker Compose plugin
+- Enables Docker service on boot
+- Verifies installation
+
+## 4) Start production stack (one command)
 
 ```bash
-docker compose -f docker-compose.prod.yml ps
+./scripts/deploy/deploy-prod.sh
 ```
 
-Read logs:
+What it does:
+
+- Creates missing config/env files from examples
+- Builds and starts production services
+
+Default production services:
+
+- `weaviate`
+- `nlp-processor` (required for semantic search)
+- `frontend`
+
+## 5) Optional: move your already-indexed local Weaviate data to prod
+
+Use this if you want to avoid re-running GLiNER/embedding import in production.
+
+### 4.1 Export on local machine
+
+Inside local repo:
 
 ```bash
-docker compose -f docker-compose.prod.yml logs -f
+./scripts/deploy/export-weaviate-data.sh
 ```
 
-## 4) Verify services
+This creates `weaviate-data.tar.gz` in the repository folder.
 
-- Frontend: `http://YOUR_DROPLET_IP:3000`
-- Weaviate ready:
+### 4.2 Copy backup + config to Droplet
 
-```bash
-curl http://localhost:8080/v1/.well-known/ready
-```
-
-## 5) Migrate existing local Weaviate data to production (no re-import)
-
-If you already have all data indexed locally, move the Weaviate volume to production and skip `weaviate-init`.
-
-### 5.1 Export local volume (on your local machine)
-
-```bash
-# Make sure local stack is stopped first
-docker compose down
-
-# Create a tar.gz backup of local Weaviate data
-docker run --rm \
-  -v ts-portal_weaviate_data:/data \
-  -v "$PWD":/backup \
-  alpine tar czf /backup/weaviate-data.tar.gz -C /data .
-```
-
-If your local compose project name is different, check the exact volume name:
-
-```bash
-docker volume ls | grep weaviate_data
-```
-
-### 5.2 Copy backup to Droplet
+Run from local machine:
 
 ```bash
 scp weaviate-data.tar.gz root@YOUR_DROPLET_IP:/root/
+scp config.json root@YOUR_DROPLET_IP:/root/ts-portal/config.json
 ```
 
-### 5.3 Restore into production volume (on Droplet)
+### 4.3 Restore on Droplet
+
+Inside Droplet repo:
 
 ```bash
-cd ts-portal
-
-# Stop services first
-docker compose -f docker-compose.prod.yml down
-
-# Ensure volume exists
-docker volume create ts-portal_weaviate_data
-
-# Restore backup into volume
-docker run --rm \
-  -v ts-portal_weaviate_data:/data \
-  -v /root:/backup \
-  alpine sh -c "rm -rf /data/* && tar xzf /backup/weaviate-data.tar.gz -C /data"
-
-# Start production services
-docker compose -f docker-compose.prod.yml up -d --build
+./scripts/deploy/restore-weaviate-data.sh /root/weaviate-data.tar.gz
+./scripts/deploy/deploy-prod.sh
 ```
 
-### 5.4 Validate data on Droplet
+## 6) Verify
 
 ```bash
-curl -s "http://localhost:8080/v1/objects?class=Testimonies" | jq '.objects | length'
-curl -s "http://localhost:8080/v1/objects?class=Chunks" | jq '.objects | length'
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml exec weaviate sh -lc "wget -qO- --header='Content-Type: application/json' --post-data='{\"query\":\"{ Aggregate { Testimonies { meta { count } } Chunks { meta { count } } } }\"}' http://localhost:8080/v1/graphql"
 ```
 
-## 6) Basic operations
+Open:
 
-Update to latest code:
+- `http://YOUR_DROPLET_IP:3000`
 
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-```
+## Optional operations
 
-Restart services:
-
-```bash
-docker compose -f docker-compose.prod.yml restart
-```
-
-Stop services:
-
-```bash
-docker compose -f docker-compose.prod.yml down
-```
-
-## 7) Optional: run import in production only when needed
-
-This starts NLP + import jobs only for that run:
+Run schema+import manually only when needed:
 
 ```bash
 docker compose -f docker-compose.prod.yml --profile init run --rm weaviate-init
 ```
 
-## 8) Optional: expose with HTTPS (recommended)
-
-Use Nginx/Caddy as reverse proxy to forward:
-
-- `https://your-domain.com` -> `http://127.0.0.1:3000`
-
-After proxy is configured, close public access to port `3000` in your firewall.
-
-## Troubleshooting
-
-- If `weaviate-init` fails, inspect logs:
+Update deployment after `git pull`:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile init logs weaviate-init
-```
-
-- If model download is slow while running import: this is expected. NLP downloads models once and caches them in `huggingface_cache` volume.
-
-- To re-run import manually:
-
-```bash
-docker compose -f docker-compose.prod.yml --profile init run --rm weaviate-init
+./scripts/deploy/deploy-prod.sh
 ```

@@ -139,8 +139,47 @@ curl -s "http://localhost:8080/v1/objects?class=Chunks" | jq '.objects | length'
 - **[docs/IMPORTING_INTERVIEWS.md](./docs/IMPORTING_INTERVIEWS.md)** - JSON format and import process
 - **[docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md)** - Environment variables and advanced configuration
 - **[docs/COMMANDS.md](./docs/COMMANDS.md)** - All available commands
-- **[docs/DEPLOY_PRODUCTION_DO.md](./docs/DEPLOY_PRODUCTION_DO.md)** - Minimal production deployment on DigitalOcean Droplet
+- **[docs/DEPLOY_PRODUCTION_DO.md](./docs/DEPLOY_PRODUCTION_DO.md)** - Production deployment guide (works on any Docker host, with DigitalOcean example)
 - **[docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** - Common issues and solutions
+
+## 🚢 Production Deployment
+
+This production flow works on any Linux host with Docker.
+
+On the server terminal (remote host):
+
+```bash
+# Install git and clone repo (one time)
+sudo apt update && sudo apt install -y git
+git clone git@github.com:theirstory/ts-portal.git
+cd ts-portal
+
+# Install Docker once (Ubuntu)
+sudo bash scripts/deploy/setup-docker-ubuntu.sh
+
+# Deploy/update
+./scripts/deploy/deploy-prod.sh
+```
+
+If you already have indexed data locally and want to avoid re-import/NLP processing in production:
+
+On your local terminal:
+
+```bash
+# Local machine
+./scripts/deploy/export-weaviate-data.sh
+scp weaviate-data.tar.gz user@YOUR_SERVER_IP:/tmp/
+scp config.json user@YOUR_SERVER_IP:/path/to/ts-portal/config.json
+```
+
+On the server terminal:
+
+```bash
+./scripts/deploy/restore-weaviate-data.sh /tmp/weaviate-data.tar.gz
+./scripts/deploy/deploy-prod.sh
+```
+
+Full guide (DigitalOcean example): **[docs/DEPLOY_PRODUCTION_DO.md](./docs/DEPLOY_PRODUCTION_DO.md)**
 
 ## ⚡ Common Commands
 
@@ -149,9 +188,8 @@ curl -s "http://localhost:8080/v1/objects?class=Chunks" | jq '.objects | length'
 docker compose --profile local up     # Start with logs
 docker compose down                   # Stop
 
-# Production (DigitalOcean Droplet)
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml --profile init run --rm weaviate-init  # Optional import
+# Production (with Docker)
+./scripts/deploy/deploy-prod.sh
 docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f
 

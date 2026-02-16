@@ -19,7 +19,6 @@ services:
     restart: unless-stopped
 
   nlp-processor:
-    profiles: ["init"]
     build:
       context: ./nlp-processor
       dockerfile: Dockerfile
@@ -70,6 +69,8 @@ services:
       - ./.env.production
     depends_on:
       weaviate:
+        condition: service_healthy
+      nlp-processor:
         condition: service_healthy
     volumes:
       - ./config.json:/app/config.json:ro
