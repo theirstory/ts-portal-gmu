@@ -11,7 +11,6 @@ export const ListViewNerChips = ({ story }: { story: WeaviateGenericObject<Testi
   const { nerFilters } = useSemanticSearchStore();
   const filteredNerLabels = story.properties.ner_labels.filter((label: NerLabel) => nerFilters.includes(label));
 
-  console.log('Rendering NER Chips for story:', story.id, 'with labels:', filteredNerLabels);
   if (!filteredNerLabels.length) return null;
   return (
     <>

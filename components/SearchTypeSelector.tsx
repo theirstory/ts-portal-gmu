@@ -4,13 +4,13 @@ import { useSemanticSearchStore } from '@/app/stores/useSemanticSearchStore';
 import { SearchType } from '@/types/searchType';
 import { Box, MenuItem, Select } from '@mui/material';
 
-const SEARCH_TYPE_LABELS: Record<SearchType, string> = {
+const SEARCH_TYPE_LABELS: Partial<Record<SearchType, string>> = {
   [SearchType.bm25]: 'Keyword',
   [SearchType.Vector]: 'Thematic',
   [SearchType.Hybrid]: 'Hybrid',
 };
 
-const SEARCH_TYPE_FULL_LABELS: Record<SearchType, string> = {
+const SEARCH_TYPE_FULL_LABELS: Partial<Record<SearchType, string>> = {
   [SearchType.bm25]: 'Keyword Search',
   [SearchType.Vector]: 'Thematic Search',
   [SearchType.Hybrid]: 'Hybrid Search',
