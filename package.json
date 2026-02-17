@@ -5,7 +5,7 @@
   "description": "TheirStory portal application",
   "version": "1.2.0",
   "repository": "",
-  "author": "Juan Ignacio Porta",
+  "author": "TheirStory Team",
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "next build --webpack",

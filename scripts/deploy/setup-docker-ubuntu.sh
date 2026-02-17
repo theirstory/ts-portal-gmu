@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage:
+#   sudo bash scripts/deploy/setup-docker-ubuntu.sh
+
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root: sudo bash scripts/deploy/setup-docker-ubuntu.sh"
   exit 1

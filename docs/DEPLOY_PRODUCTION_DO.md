@@ -55,39 +55,50 @@ Default production services:
 - `nlp-processor` (required for semantic search)
 - `frontend`
 
-## 5) Optional: move your already-indexed local Weaviate data to prod
+## 5) Optional but recommended: domain + HTTPS + firewall
+
+After your domain DNS `A` record points to the Droplet IP:
+
+```bash
+sudo bash scripts/deploy/setup-nginx-ssl.sh YOUR_DOMAIN YOUR_EMAIL 3000
+```
+
+What this script does:
+
+- Installs `nginx` + `certbot`
+- Configures reverse proxy to `127.0.0.1:3000`
+- Requests and configures Let's Encrypt certificate
+- Enables HTTPS redirect
+- Opens firewall for `22`, `80`, `443` and closes `3000` public access
+
+## 6) Optional: move your already-indexed local Weaviate data to prod
 
 Use this if you want to avoid re-running GLiNER/embedding import in production.
 
-### 4.1 Export on local machine
+### 6.1 Export on local machine
 
 Inside local repo:
 
 ```bash
-./scripts/deploy/export-weaviate-data.sh
+./scripts/deploy/export-weaviate-data.sh "$PWD/weaviate-data.tar.gz" ts-portal_weaviate_data root@YOUR_DROPLET_IP /root/ts-portal
 ```
 
-This creates `weaviate-data.tar.gz` in the repository folder.
+This command exports Weaviate data and uploads to the Droplet:
+- `/tmp/weaviate-data.tar.gz`
+- `config.json`
+- `json/`
+- `public/`
 
-### 4.2 Copy backup + config to Droplet
-
-Run from local machine:
-
-```bash
-scp weaviate-data.tar.gz root@YOUR_DROPLET_IP:/root/
-scp config.json root@YOUR_DROPLET_IP:/root/ts-portal/config.json
-```
-
-### 4.3 Restore on Droplet
+### 6.2 Restore on Droplet
 
 Inside Droplet repo:
 
 ```bash
-./scripts/deploy/restore-weaviate-data.sh /root/weaviate-data.tar.gz
+./scripts/deploy/restore-weaviate-data.sh /tmp/weaviate-data.tar.gz
 ./scripts/deploy/deploy-prod.sh
 ```
 
-## 6) Verify
+## 7) Verify
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -97,6 +108,7 @@ docker compose -f docker-compose.prod.yml exec weaviate sh -lc "wget -qO- --head
 Open:
 
 - `http://YOUR_DROPLET_IP:3000`
+- `https://YOUR_DOMAIN` (if SSL step was completed)
 
 ## Optional operations
 
