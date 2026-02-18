@@ -167,6 +167,7 @@ On your local terminal:
 On the server terminal:
 
 ```bash
+cd /root/ts-portal
 ./scripts/deploy/restore-weaviate-data.sh /tmp/weaviate-data.tar.gz
 ./scripts/deploy/deploy-prod.sh
 ```

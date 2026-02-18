@@ -52,9 +52,14 @@ if [[ -n "$server" ]]; then
     fi
   done
 
-  ssh "$server" "mkdir -p '$remote_repo_path'"
-  tar czf - config.json json public | ssh "$server" "tar xzf - -C '$remote_repo_path'"
-  scp "$backup_path" "$server:/tmp/weaviate-data.tar.gz"
+  # Reuse one authenticated SSH session for all remote operations.
+  control_path="${HOME}/.ssh/cm-%C"
+  ssh_opts=(-o ControlMaster=auto -o ControlPersist=10m -o ControlPath="$control_path")
+
+  mkdir -p "${HOME}/.ssh"
+  ssh "${ssh_opts[@]}" "$server" "mkdir -p '$remote_repo_path'"
+  tar czf - config.json json public | ssh "${ssh_opts[@]}" "$server" "tar xzf - -C '$remote_repo_path'"
+  scp "${ssh_opts[@]}" "$backup_path" "$server:/tmp/weaviate-data.tar.gz"
 
   echo "Synced config.json, json/, public/ and uploaded backup to $server"
   echo "Next on server:"
