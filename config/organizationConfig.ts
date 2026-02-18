@@ -18,6 +18,10 @@ export interface OrganizationConfig {
   name: string;
   displayName: string;
   description: string;
+  logo?: {
+    path?: string;
+    alt?: string;
+  };
 }
 
 export interface ThemeColorsConfig {

@@ -46,7 +46,11 @@ Configure your organization's information:
   "organization": {
     "name": "Organization Archives",
     "displayName": "Research Portal",
-    "description": "This collection contains recorded interviews..."
+    "description": "This collection contains recorded interviews...",
+    "logo": {
+      "path": "",
+      "alt": "Organization logo"
+    }
   }
 }
 ```
@@ -56,6 +60,14 @@ Configure your organization's information:
 - `name`: Full organization name (appears in footer)
 - `displayName`: Title displayed on main page
 - `description`: Description shown below the title
+- `logo.path`: Optional path from `/public` (example: `/images/logo.png`)
+- `logo.alt`: Optional alt text for the custom logo image
+
+**Organization logo behavior:**
+
+- If `organization.logo.path` has a value, that logo is shown in the top bar.
+- The file should exist inside `public/images` (for example `public/images/logo.png` configured as `/images/logo.png`).
+- If `organization.logo.path` is empty (or image fails to load), the portal keeps the default `LogoArchive`.
 
 ### 2. Theme
 
@@ -130,7 +142,11 @@ Array of additional colors used when more colors are needed than defined labels.
   "organization": {
     "name": "My Organization",
     "displayName": "My Org Research Portal",
-    "description": "Welcome to our portal..."
+    "description": "Welcome to our portal...",
+    "logo": {
+      "path": "",
+      "alt": "My Organization logo"
+    }
   }
 }
 ```

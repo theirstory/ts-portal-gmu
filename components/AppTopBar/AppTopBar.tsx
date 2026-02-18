@@ -3,8 +3,10 @@ import React, { useEffect, useState } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Link from 'next/link';
-import { Box, Typography, IconButton, Drawer } from '@mui/material';
+import { Box, Typography, IconButton, Drawer, Tooltip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { LogoArchive } from '@/app/assets/svg/LogoArchive';
 import { CarouselTopBar } from '../CarouselTopBar/CarouselTopBar';
 import useLayoutState from '@/app/stores/useLayout';
@@ -27,9 +29,16 @@ export const AppTopBar = () => {
   const pathname = usePathname();
   const isStoryPage = pathname.startsWith('/story/');
   const isHeaderOverlayEnabled = config?.ui?.portalHeaderOverlay?.enabled ?? true;
+  const organizationLogoPath = config.organization.logo?.path?.trim();
+  const shouldUseCustomLogo = Boolean(organizationLogoPath);
+  const logoAlt = config.organization.logo?.alt?.trim() || `${config.organization.displayName} logo`;
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleTopBarCollapseToggle = () => {
+    setTopBarCollapsed(!isTopBarCollapsed);
   };
 
   useEffect(() => {
@@ -57,7 +66,16 @@ export const AppTopBar = () => {
           justifyContent: 'space-between',
           p: 2,
         }}>
-        <LogoArchive color="white" width="120" />
+        {shouldUseCustomLogo ? (
+          <Box
+            component="img"
+            src={organizationLogoPath}
+            alt={logoAlt}
+            sx={{ maxWidth: 120, maxHeight: 40, width: 'auto', height: 'auto', objectFit: 'contain' }}
+          />
+        ) : (
+          <LogoArchive color="white" width="120" />
+        )}
         <IconButton onClick={handleDrawerToggle}>
           <CloseIcon />
         </IconButton>
@@ -117,13 +135,35 @@ export const AppTopBar = () => {
                   window.location.href = '/';
                 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', height: 40 }}>
-                  <LogoArchive
-                    color={config.theme.colors.primary.contrastText}
-                    text={config.organization.displayName}
-                  />
+                  {shouldUseCustomLogo ? (
+                    <Box
+                      component="img"
+                      src={organizationLogoPath}
+                      alt={logoAlt}
+                      sx={{ maxHeight: 40, maxWidth: { xs: 140, md: 220 }, width: 'auto', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <LogoArchive
+                      color={config.theme.colors.primary.contrastText}
+                      text={config.organization.displayName}
+                    />
+                  )}
                 </Box>
               </Link>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                {!isStoryPage && (
+                  <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
+                    <Tooltip title={isTopBarCollapsed ? 'Expand' : 'Collapse'}>
+                      <IconButton
+                        onClick={handleTopBarCollapseToggle}
+                        size="small"
+                        aria-label={isTopBarCollapsed ? 'Expand' : 'Collapse'}
+                        sx={{ color: config.theme.colors.primary.main }}>
+                        {isTopBarCollapsed ? <KeyboardArrowDownIcon /> : <KeyboardArrowUpIcon />}
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                   <Link
                     href="/"
@@ -179,16 +219,16 @@ export const AppTopBar = () => {
                           display: 'inline-flex',
                           flexDirection: 'column',
                           alignItems: 'flex-start',
-                        width: 'fit-content',
-                        maxWidth: 'min(100%, 980px)',
-                        backgroundColor: 'rgba(0, 0, 0, 0.35)',
-                        backdropFilter: 'blur(2px)',
-                        borderRadius: '8px',
-                        px: '14px',
-                        py: '10px',
-                      }
-                    : undefined
-                }>
+                          width: 'fit-content',
+                          maxWidth: 'min(100%, 980px)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                          backdropFilter: 'blur(2px)',
+                          borderRadius: '8px',
+                          px: '14px',
+                          py: '10px',
+                        }
+                      : undefined
+                  }>
                   <Typography
                     variant="h4"
                     fontWeight={700}

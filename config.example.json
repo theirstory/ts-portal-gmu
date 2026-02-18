@@ -4,7 +4,12 @@
   "organization": {
     "name": "Your Organization Name",
     "displayName": "Your Portal Title",
-    "description": "Description of your portal and collection. This appears on the main page."
+    "description": "Description of your portal and collection. This appears on the main page.",
+    "logo": {
+      "_comment": "Optional custom logo path from /public (example: /images/logo.png). If empty, default LogoArchive is used.",
+      "path": "",
+      "alt": "Organization logo"
+    }
   },
 
   "theme": {
