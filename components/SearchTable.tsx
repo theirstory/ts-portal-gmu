@@ -18,11 +18,19 @@ export const SearchTable = () => {
   if (isMobile) {
     // Mobile Card Layout
     return (
-      <Box id="search-table-mobile">
+      <Box
+        id="search-table-mobile"
+        sx={{
+          mt: 1,
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
         <Box
           sx={{
-            height: 'calc(100vh - 240px)',
-            minHeight: '300px',
+            flex: 1,
+            minHeight: 0,
             overflow: 'auto',
             pb: 2,
           }}>
