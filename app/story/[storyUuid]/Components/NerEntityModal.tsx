@@ -24,7 +24,10 @@ import { useSemanticSearchStore } from '@/app/stores/useSemanticSearchStore';
 import usePlayerStore from '@/app/stores/usePlayerStore';
 import { useTranscriptPanelStore } from '@/app/stores/useTranscriptPanelStore';
 import { getNerColor, getNerDisplayName } from '@/config/organizationConfig';
-import { searchNerEntitiesAcrossCollection } from '@/lib/weaviate/search';
+import {
+  searchNerEntitiesAcrossCollection,
+  getNerEntityRecordingCounts,
+} from '@/lib/weaviate/search';
 import { WeaviateGenericObject } from 'weaviate-client';
 import { Chunks } from '@/types/weaviate';
 import { colors } from '@/lib/theme';
@@ -249,6 +252,8 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [collectionOccurrences, setCollectionOccurrences] = useState<WeaviateGenericObject<Chunks>[]>([]);
+  const [projectMentionCount, setProjectMentionCount] = useState<number | null>(null);
+  const [projectRecordingCount, setProjectRecordingCount] = useState<number | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const { storyHubPage, setUpdateSelectedNerLabel, selected_ner_labels, allWords } = useSemanticSearchStore();
   const { seekTo } = usePlayerStore();
@@ -280,23 +285,30 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
     );
   }, [allWords, entityLabel, entityText, storyHubPage?.properties.ner_data]);
 
-  // Load collection data when modal opens
+  // Load collection data, total mention count, and recording count when modal opens
+  // Use high limit so "In the project" shows accurate total (Weaviate max 10k per query)
   useEffect(() => {
-    const loadCollectionOccurrences = async () => {
-      setLoading(true);
-      try {
-        const searchResult = await searchNerEntitiesAcrossCollection(entityText, entityLabel, currentStoryUuid);
-        setCollectionOccurrences(searchResult.objects);
-      } catch (error) {
+    if (!open) return;
+    const key = `${entityText.toLowerCase()}|${entityLabel}`;
+    setProjectRecordingCount(null);
+    setProjectMentionCount(null);
+    setLoading(true);
+    Promise.all([
+      searchNerEntitiesAcrossCollection(entityText, entityLabel, currentStoryUuid, 10_000),
+      getNerEntityRecordingCounts([{ text: entityText, label: entityLabel }]),
+    ])
+      .then(([searchResult, counts]) => {
+        const objects = searchResult.objects;
+        setCollectionOccurrences(objects);
+        setProjectMentionCount(objects.length);
+        setProjectRecordingCount(counts[key] ?? 0);
+      })
+      .catch((error) => {
         console.error('Error loading collection occurrences:', error);
-      } finally {
+      })
+      .finally(() => {
         setLoading(false);
-      }
-    };
-
-    if (open) {
-      loadCollectionOccurrences();
-    }
+      });
   }, [open, entityText, entityLabel, currentStoryUuid]);
 
   const createSimpleContext = (
@@ -386,10 +398,12 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
     });
   };
 
-  const recordingCount = occurrencesByRecording.length;
+  const recordingCount = projectRecordingCount ?? occurrencesByRecording.length;
+  const mentionCount = projectMentionCount ?? collectionOccurrences.length;
+  const mentionCountDisplay = mentionCount >= 10_000 ? '10,000+' : String(mentionCount);
   const projectTabLabel =
-    collectionOccurrences.length > 0
-      ? `In the project (${collectionOccurrences.length} mention${collectionOccurrences.length !== 1 ? 's' : ''} in ${recordingCount} recording${recordingCount !== 1 ? 's' : ''})`
+    mentionCount > 0 || collectionOccurrences.length > 0
+      ? `In the project (${mentionCountDisplay} mention${mentionCount !== 1 ? 's' : ''} in ${recordingCount} recording${recordingCount !== 1 ? 's' : ''})`
       : 'In the project';
 
   return (
@@ -504,7 +518,7 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
             ) : (
               <>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {collectionOccurrences.length} mention{collectionOccurrences.length !== 1 ? 's' : ''} across{' '}
+                  {mentionCountDisplay} mention{mentionCount !== 1 ? 's' : ''} across{' '}
                   {recordingCount} recording{recordingCount !== 1 ? 's' : ''}
                 </Typography>
                 <List sx={{ p: 0 }}>
