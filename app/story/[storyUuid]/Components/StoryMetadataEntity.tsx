@@ -1,7 +1,7 @@
 import { useSemanticSearchStore } from '@/app/stores/useSemanticSearchStore';
 
-import { Box, Chip, Typography, Tooltip, useMediaQuery } from '@mui/material';
-import React, { useMemo, useState } from 'react';
+import { Box, Chip, Skeleton, Typography, Tooltip, useMediaQuery } from '@mui/material';
+import React, { useMemo, useState, useEffect } from 'react';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { getNerColor } from '@/config/organizationConfig';
@@ -10,6 +10,9 @@ import usePlayerStore from '@/app/stores/usePlayerStore';
 import { useTranscriptPanelStore } from '@/app/stores/useTranscriptPanelStore';
 import { NerEntityModal } from './NerEntityModal';
 import { colors, theme } from '@/lib/theme';
+import { getNerEntityRecordingCounts } from '@/lib/weaviate/search';
+
+const recordingCountKey = (text: string, label: string) => `${text.toLowerCase()}|${label}`;
 
 export const StoryMetadataEntity = () => {
   /**
@@ -32,6 +35,8 @@ export const StoryMetadataEntity = () => {
     text: string;
     label: string;
   } | null>(null);
+  const [recordingCounts, setRecordingCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState(false);
 
   /**
    * handlers
@@ -118,6 +123,39 @@ export const StoryMetadataEntity = () => {
     );
   }, [ner_data]);
 
+  const entityList = useMemo(() => {
+    const list: { text: string; label: string }[] = [];
+    Object.entries(groupedEntities).forEach(([label, items]) => {
+      items.forEach(({ text }) => list.push({ text, label }));
+    });
+    return list;
+  }, [groupedEntities]);
+
+  const entityListKey = useMemo(
+    () => entityList.map((e) => recordingCountKey(e.text, e.label)).sort().join(','),
+    [entityList],
+  );
+
+  useEffect(() => {
+    if (entityList.length === 0) {
+      setRecordingCounts({});
+      setCountsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCountsLoading(true);
+    getNerEntityRecordingCounts(entityList)
+      .then((counts) => {
+        if (!cancelled) setRecordingCounts(counts);
+      })
+      .finally(() => {
+        if (!cancelled) setCountsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entityListKey]);
+
   /**
    * render
    */
@@ -167,18 +205,62 @@ export const StoryMetadataEntity = () => {
             overflow="auto"
             p={1}
             sx={{ borderRadius: 1 }}>
-            {items.map(({ text, count }, index) => (
-              <Chip
-                id="ner-entity-chip"
-                key={index}
-                variant="outlined"
-                label={`${text} (${count})`}
-                onClick={() => handleOpenModal(text, category)}
-                clickable
-                size="small"
-                sx={{ fontSize: '0.75rem', height: 22, minHeight: 22 }}
-              />
-            ))}
+            {countsLoading ? (
+              items.map((_, index) => (
+                <Skeleton
+                  key={index}
+                  variant="rounded"
+                  width={80}
+                  height={22}
+                  sx={{ borderRadius: 2 }}
+                />
+              ))
+            ) : (
+              [...items]
+                .sort((a, b) => {
+                  const recA = recordingCounts[recordingCountKey(a.text, category)] ?? 0;
+                  const recB = recordingCounts[recordingCountKey(b.text, category)] ?? 0;
+                  if (recB !== recA) return recB - recA;
+                  if (b.count !== a.count) return b.count - a.count;
+                  return a.text.localeCompare(b.text);
+                })
+                .map(({ text, count }, index) => {
+                  const recCount = recordingCounts[recordingCountKey(text, category)];
+                  const recordingLabel =
+                    recCount != null ? ` in ${recCount} recording${recCount !== 1 ? 's' : ''}` : '';
+                  return (
+                    <Tooltip
+                      key={`${text}-${category}-${index}`}
+                      title={
+                        recCount != null
+                          ? `${count} mention${count !== 1 ? 's' : ''} in this recording · appears${recordingLabel}`
+                          : `${count} mention${count !== 1 ? 's' : ''} in this recording`
+                      }
+                      arrow>
+                      <Chip
+                        id="ner-entity-chip"
+                        variant="outlined"
+                        label={
+                          <>
+                            <Box component="span" sx={{ fontWeight: 600 }}>
+                              {text}
+                            </Box>
+                            <Box component="span" sx={{ fontWeight: 400, opacity: 0.85 }}>
+                              {recCount != null
+                                ? ` (${count} here · ${recCount} ${recCount === 1 ? 'recording' : 'recordings'})`
+                                : ` (${count} here)`}
+                            </Box>
+                          </>
+                        }
+                        onClick={() => handleOpenModal(text, category)}
+                        clickable
+                        size="small"
+                        sx={{ fontSize: '0.75rem', height: 22, minHeight: 22 }}
+                      />
+                    </Tooltip>
+                  );
+                })
+            )}
           </Box>
         </Box>
       ))}

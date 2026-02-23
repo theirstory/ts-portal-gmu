@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html className=" overflow-x-hidden" lang="en">
-      <body>
+      <body suppressHydrationWarning>
         <MaterialUIThemeProvider>
           <MainContainer>
             <AppTopBar />

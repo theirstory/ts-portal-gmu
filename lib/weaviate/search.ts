@@ -671,3 +671,119 @@ export async function searchNerEntitiesAcrossCollection(
     throw new Error('Failed to search NER entities across collection');
   }
 }
+
+const NER_ENTITY_RECORDING_COUNT_KEY = (text: string, label: string) =>
+  `${text.toLowerCase()}|${label}`;
+
+/** Returns how many distinct recordings (testimonies) contain each entity. */
+export async function getNerEntityRecordingCounts(
+  entities: { text: string; label: string }[],
+): Promise<Record<string, number>> {
+  if (entities.length === 0) return {};
+  const client = await initWeaviateClient();
+  const myCollection = client.collections.get<Chunks>('Chunks');
+  const result: Record<string, number> = {};
+  const limit = 1000;
+
+  for (const { text, label } of entities) {
+    try {
+      const filtersArray: FilterValue[] = [
+        myCollection.filter.byProperty('ner_text' as any).containsAny([text.toLowerCase()]),
+        myCollection.filter.byProperty('ner_labels' as any).containsAny([label]),
+      ];
+      const combinedFilter: FilterValue = {
+        operator: 'And',
+        filters: filtersArray,
+        value: true,
+      };
+      const response = await myCollection.query.fetchObjects({
+        limit,
+        filters: combinedFilter,
+        returnProperties: ['theirstory_id'] as any,
+      });
+      const ids = new Set<string>();
+      for (const obj of response.objects) {
+        const id = (obj.properties as any)?.theirstory_id;
+        if (id) ids.add(id);
+      }
+      result[NER_ENTITY_RECORDING_COUNT_KEY(text, label)] = ids.size;
+    } catch (err) {
+      console.error('Error getting recording count for entity:', text, label, err);
+      result[NER_ENTITY_RECORDING_COUNT_KEY(text, label)] = 0;
+    }
+  }
+
+  return result;
+}
+
+const ENTITY_RECORDING_COUNTS_PATH = path.join(process.cwd(), 'json', 'entity-recording-counts.json');
+
+/** Read precomputed entity → recording count map from json/entity-recording-counts.json if it exists. */
+export async function getEntityRecordingCountsMap(): Promise<Record<string, number>> {
+  try {
+    const raw = await readFile(ENTITY_RECORDING_COUNTS_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, number> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof key === 'string' && typeof value === 'number' && value >= 0) result[key] = value;
+      }
+      return result;
+    }
+  } catch {
+    // File missing or invalid
+  }
+  return {};
+}
+
+// Weaviate default QUERY_MAXIMUM_RESULTS is 10,000; offset + limit cannot exceed it.
+const BUILD_ENTITY_COUNTS_PAGE_SIZE = 100;
+const BUILD_ENTITY_COUNTS_MAX_OFFSET = 10_000 - BUILD_ENTITY_COUNTS_PAGE_SIZE;
+
+/** Build entity → recording count map from Weaviate Chunks and optionally write to json/entity-recording-counts.json. */
+export async function buildEntityRecordingCountsMap(writeToFile = true): Promise<Record<string, number>> {
+  const client = await initWeaviateClient();
+  const myCollection = client.collections.get<Chunks>('Chunks');
+  const keyToIds = new Map<string, Set<string>>();
+  const limit = BUILD_ENTITY_COUNTS_PAGE_SIZE;
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore && offset <= BUILD_ENTITY_COUNTS_MAX_OFFSET) {
+    const response = await myCollection.query.fetchObjects({
+      limit,
+      offset,
+      returnProperties: ['ner_text', 'ner_labels', 'theirstory_id'] as any,
+    });
+    for (const obj of response.objects) {
+      const props = obj.properties as any;
+      const theirstoryId = props?.theirstory_id;
+      if (!theirstoryId) continue;
+      const texts: string[] = Array.isArray(props?.ner_text) ? props.ner_text : [];
+      const labels: string[] = Array.isArray(props?.ner_labels) ? props.ner_labels : [];
+      const len = Math.min(texts.length, labels.length);
+      for (let i = 0; i < len; i++) {
+        const text = String(texts[i] ?? '').toLowerCase().trim();
+        const label = String(labels[i] ?? '').trim();
+        if (!text || !label) continue;
+        const key = NER_ENTITY_RECORDING_COUNT_KEY(text, label);
+        if (!keyToIds.has(key)) keyToIds.set(key, new Set());
+        keyToIds.get(key)!.add(theirstoryId);
+      }
+    }
+    hasMore = response.objects.length === limit;
+    offset += limit;
+  }
+
+  const result: Record<string, number> = {};
+  for (const [key, ids] of keyToIds) result[key] = ids.size;
+
+  if (writeToFile && Object.keys(result).length > 0) {
+    try {
+      await writeFile(ENTITY_RECORDING_COUNTS_PATH, JSON.stringify(result, null, 0), 'utf-8');
+    } catch (e) {
+      console.error('Failed to write entity-recording-counts.json:', e);
+    }
+  }
+  return result;
+}

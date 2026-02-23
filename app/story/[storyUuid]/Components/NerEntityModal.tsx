@@ -12,10 +12,13 @@ import {
   Tab,
   List,
   ListItem,
+  Collapse,
   CircularProgress,
   Button,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useSemanticSearchStore } from '@/app/stores/useSemanticSearchStore';
 import usePlayerStore from '@/app/stores/usePlayerStore';
@@ -246,6 +249,7 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [collectionOccurrences, setCollectionOccurrences] = useState<WeaviateGenericObject<Chunks>[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const { storyHubPage, setUpdateSelectedNerLabel, selected_ner_labels, allWords } = useSemanticSearchStore();
   const { seekTo } = usePlayerStore();
   const { setTargetScrollTime } = useTranscriptPanelStore();
@@ -352,6 +356,42 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
     setTabValue(newValue);
   };
 
+  // Group project occurrences by recording (theirstory_id) for clearer display
+  const occurrencesByRecording = useMemo(() => {
+    const byId = new Map<string, { interview_title: string; theirstory_id: string; occurrences: WeaviateGenericObject<Chunks>[] }>();
+    for (const obj of collectionOccurrences) {
+      const id = (obj.properties as any)?.theirstory_id ?? '';
+      const title = (obj.properties as any)?.interview_title ?? 'Unknown recording';
+      if (!byId.has(id)) {
+        byId.set(id, { interview_title: title, theirstory_id: id, occurrences: [] });
+      }
+      byId.get(id)!.occurrences.push(obj);
+    }
+    return Array.from(byId.values());
+  }, [collectionOccurrences]);
+
+  // When modal opens or entity/data changes, expand all recording sections by default
+  useEffect(() => {
+    if (open && occurrencesByRecording.length > 0) {
+      setExpandedSections(new Set(occurrencesByRecording.map((g) => g.theirstory_id)));
+    }
+  }, [open, entityText, entityLabel, occurrencesByRecording]);
+
+  const toggleSection = (theirstoryId: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(theirstoryId)) next.delete(theirstoryId);
+      else next.add(theirstoryId);
+      return next;
+    });
+  };
+
+  const recordingCount = occurrencesByRecording.length;
+  const projectTabLabel =
+    collectionOccurrences.length > 0
+      ? `In the project (${collectionOccurrences.length} mention${collectionOccurrences.length !== 1 ? 's' : ''} in ${recordingCount} recording${recordingCount !== 1 ? 's' : ''})`
+      : 'In the project';
+
   return (
     <Dialog
       open={open}
@@ -405,10 +445,7 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
             aria-label="entity occurrences tabs"
             sx={{ paddingLeft: 2 }}>
             <Tab label={`In the interview (${currentInterviewOccurrences.length})`} sx={{ textTransform: 'none' }} />
-            <Tab
-              label={`In the project${collectionOccurrences.length > 0 ? ` (${collectionOccurrences.length})` : ''}`}
-              sx={{ textTransform: 'none' }}
-            />
+            <Tab label={projectTabLabel} sx={{ textTransform: 'none' }} />
           </Tabs>
         </Box>
 
@@ -465,56 +502,101 @@ export const NerEntityModal: React.FC<NerEntityModalProps> = ({
                 No occurrences found in other interviews
               </Typography>
             ) : (
-              <List sx={{ p: 0 }}>
-                {collectionOccurrences.map((occurrence, index) => {
-                  const transcription = occurrence.properties.transcription || '';
-                  const collapsedContext = createSimpleContext(transcription, entityText, COLLAPSED_CHAR_WINDOW);
-                  const expandedContext = createSimpleContext(transcription, entityText, EXPANDED_CHAR_WINDOW);
-
-                  return (
-                    <ListItem
-                      key={`${occurrence.uuid || occurrence.properties.theirstory_id}-${occurrence.properties.start_time}-${index}`}
-                      onClick={() => handleCollectionClick(occurrence)}
-                      sx={{
-                        cursor: 'pointer',
-                        borderRadius: 1,
-                        mb: 1,
-                        '&:hover': { backgroundColor: 'action.hover' },
-                        border: '1px solid',
-                        borderColor: 'divider',
-                      }}>
-                      <Box sx={{ width: '100%' }}>
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {collectionOccurrences.length} mention{collectionOccurrences.length !== 1 ? 's' : ''} across{' '}
+                  {recordingCount} recording{recordingCount !== 1 ? 's' : ''}
+                </Typography>
+                <List sx={{ p: 0 }}>
+                  {occurrencesByRecording.map((group) => {
+                    const isExpanded = expandedSections.has(group.theirstory_id);
+                    return (
+                      <Box key={group.theirstory_id} sx={{ mb: 2 }}>
                         <Box
+                          component="button"
+                          onClick={() => toggleSection(group.theirstory_id)}
                           sx={{
+                            width: '100%',
+                            lineHeight: 1.5,
+                            py: 1.5,
+                            px: 0,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            mb: 1,
+                            flexWrap: 'wrap',
+                            gap: 1,
+                            backgroundColor: 'background.paper',
+                            border: 'none',
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 1,
+                            boxShadow: (theme) => `0 2px 4px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.08)'}`,
+                            '&:hover': { backgroundColor: 'action.hover' },
                           }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle2" color="primary">
-                              {occurrence.properties.interview_title}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+                            <IconButton size="small" sx={{ p: 0.25 }} aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+                              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
+                            <Typography variant="subtitle1" fontWeight="600" color="primary" noWrap>
+                              {group.interview_title}
                             </Typography>
-                            <OpenInNewIcon fontSize="small" color="action" />
                           </Box>
-
                           <Typography variant="body2" color="text.secondary">
-                            {formatTime(occurrence.properties.start_time)}
+                            {group.occurrences.length} mention{group.occurrences.length !== 1 ? 's' : ''}
                           </Typography>
                         </Box>
+                        <Collapse in={isExpanded} timeout="auto">
+                          {group.occurrences.map((occurrence, index) => {
+                        const transcription = occurrence.properties.transcription || '';
+                        const collapsedContext = createSimpleContext(transcription, entityText, COLLAPSED_CHAR_WINDOW);
+                        const expandedContext = createSimpleContext(transcription, entityText, EXPANDED_CHAR_WINDOW);
 
-                        <ExpandableHighlightedText
-                          collapsedText={collapsedContext?.text || transcription}
-                          expandedText={expandedContext?.text || transcription}
-                          collapsedHighlightedParts={collapsedContext?.highlightedParts || null}
-                          expandedHighlightedParts={expandedContext?.highlightedParts || null}
-                          collapsedLines={3}
-                        />
+                        return (
+                          <ListItem
+                            key={`${occurrence.uuid ?? occurrence.properties.theirstory_id}-${occurrence.properties.start_time}-${index}`}
+                            onClick={() => handleCollectionClick(occurrence)}
+                            sx={{
+                              cursor: 'pointer',
+                              borderRadius: 1,
+                              mb: 1,
+                              '&:hover': { backgroundColor: 'action.hover' },
+                              border: '1px solid',
+                              borderColor: 'divider',
+                            }}>
+                            <Box sx={{ width: '100%' }}>
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  mb: 1,
+                                }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {formatTime(occurrence.properties.start_time)}
+                                </Typography>
+                              </Box>
+
+                              <ExpandableHighlightedText
+                                collapsedText={collapsedContext?.text || transcription}
+                                expandedText={expandedContext?.text || transcription}
+                                collapsedHighlightedParts={collapsedContext?.highlightedParts || null}
+                                expandedHighlightedParts={expandedContext?.highlightedParts || null}
+                                collapsedLines={3}
+                              />
+                            </Box>
+                          </ListItem>
+                        );
+                      })}
+                        </Collapse>
                       </Box>
-                    </ListItem>
-                  );
-                })}
-              </List>
+                    );
+                  })}
+                </List>
+              </>
             )}
           </Box>
         )}
