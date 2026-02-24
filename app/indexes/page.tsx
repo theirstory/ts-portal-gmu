@@ -20,7 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { IndexesListView } from '@/components/IndexesListView';
 import { IndexesHorizontalView } from '@/components/IndexesHorizontalView';
 import { colors } from '@/lib/theme';
-import type { IndexesApiResponse, IndexesStory } from '@/app/api/indexes/route';
+import type { IndexesApiResponse, IndexesStory, IndexChapter } from '@/app/api/indexes/route';
 
 function filterStories(
   stories: IndexesStory[],
@@ -99,6 +99,21 @@ export default function IndexesPage() {
     if (!data) return [];
     return filterStories(data.stories, searchQuery, selectedCollectionIds, data.chaptersByStoryId);
   }, [data, searchQuery, selectedCollectionIds]);
+
+  const filteredChaptersByStoryId = useMemo((): Record<string, IndexChapter[]> => {
+    if (!data?.chaptersByStoryId) return {};
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return data.chaptersByStoryId;
+    const out: Record<string, IndexChapter[]> = {};
+    for (const [storyId, chapters] of Object.entries(data.chaptersByStoryId)) {
+      out[storyId] = chapters.filter(
+        (ch) =>
+          ch.section_title.toLowerCase().includes(q) ||
+          (ch.synopsis != null && ch.synopsis.toLowerCase().includes(q)),
+      );
+    }
+    return out;
+  }, [data?.chaptersByStoryId, searchQuery]);
 
   const handleCollectionToggle = (id: string) => {
     setSelectedCollectionIds((prev) =>
@@ -384,13 +399,13 @@ export default function IndexesPage() {
                   {viewMode === 'list' ? (
                     <IndexesListView
                       stories={filteredStories}
-                      chaptersByStoryId={data.chaptersByStoryId}
+                      chaptersByStoryId={filteredChaptersByStoryId}
                       searchQuery={searchQuery}
                     />
                   ) : (
                     <IndexesHorizontalView
                       stories={filteredStories}
-                      chaptersByStoryId={data.chaptersByStoryId}
+                      chaptersByStoryId={filteredChaptersByStoryId}
                       searchQuery={searchQuery}
                     />
                   )}
