@@ -36,7 +36,10 @@ function storyToThumbnailStory(story: IndexesStory): WeaviateGenericObject<Testi
       publisher: '',
       hasChunks: null,
     },
-  };
+    metadata: {},
+    references: {},
+    vectors: {},
+  } as WeaviateGenericObject<Testimonies>;
 }
 
 export function IndexesListView({
