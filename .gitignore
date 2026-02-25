@@ -15,6 +15,11 @@
 # production
 /build
 
+# recording / media content (repo stays without interview data or built assets)
+/public
+/json
+weaviate-data.tar.gz
+
 # misc
 .DS_Store
 .vscode
