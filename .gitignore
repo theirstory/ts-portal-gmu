@@ -16,7 +16,11 @@
 /build
 
 # recording / media content (repo stays without interview data or built assets)
-/public
+# Ignore all of public except carousel images (for templates/PRs)
+/public/*
+!/public/images/
+/public/images/*
+!/public/images/carousel*
 weaviate-data.tar.gz
 
 # json: ignore project interview data and generated counts; keep templates and schemas for PRs/forks
